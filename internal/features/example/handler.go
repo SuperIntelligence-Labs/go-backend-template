@@ -1,6 +1,9 @@
 package example
 
 import (
+	"errors"
+	"strconv"
+
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -24,7 +27,8 @@ func (h *Handler) Create(c echo.Context) error {
 	}
 
 	if err := c.Validate(&req); err != nil {
-		return err
+		details := response.ToValidationErrors(err)
+		return response.ErrValidationFailed(details)
 	}
 
 	item, err := h.service.Create(req)
@@ -44,7 +48,7 @@ func (h *Handler) GetByID(c echo.Context) error {
 
 	item, err := h.service.GetByID(id)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return response.ErrNotFound("Item not found")
 		}
 		return response.ErrInternalError(err)
@@ -55,8 +59,21 @@ func (h *Handler) GetByID(c echo.Context) error {
 
 // GetAll handles GET /items
 func (h *Handler) GetAll(c echo.Context) error {
-	limit := 20
-	offset := 0
+	// Parse pagination parameters with defaults and limits
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	offset, _ := strconv.Atoi(c.QueryParam("offset"))
+
+	// Apply defaults
+	if limit <= 0 {
+		limit = 20
+	}
+	// Enforce maximum limit to prevent DoS
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
 
 	items, err := h.service.GetAll(limit, offset)
 	if err != nil {
@@ -79,12 +96,13 @@ func (h *Handler) Update(c echo.Context) error {
 	}
 
 	if err := c.Validate(&req); err != nil {
-		return err
+		details := response.ToValidationErrors(err)
+		return response.ErrValidationFailed(details)
 	}
 
 	item, err := h.service.Update(id, req)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return response.ErrNotFound("Item not found")
 		}
 		return response.ErrInternalError(err)
@@ -100,8 +118,13 @@ func (h *Handler) Delete(c echo.Context) error {
 		return response.ErrBadRequest("Invalid item ID", nil)
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	rowsAffected, err := h.service.Delete(id)
+	if err != nil {
 		return response.ErrInternalError(err)
+	}
+
+	if rowsAffected == 0 {
+		return response.ErrNotFound("Item not found")
 	}
 
 	return response.NoContent(c)

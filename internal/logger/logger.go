@@ -27,7 +27,12 @@ func Init(level string) {
 		output = os.Stdout
 	}
 
-	Log = zerolog.New(output).With().Timestamp().Caller().Logger()
+	// Build logger - add Caller() only in dev for performance
+	logContext := zerolog.New(output).With().Timestamp()
+	if config.IsDev() {
+		logContext = logContext.Caller()
+	}
+	Log = logContext.Logger()
 }
 
 func parseLogLevel(level string) zerolog.Level {

@@ -19,9 +19,10 @@ type CreateItemRequest struct {
 }
 
 // UpdateItemRequest represents the request payload for updating an item
+// Uses pointer fields to distinguish between "not provided" and "set to empty"
 type UpdateItemRequest struct {
-	Name        string `json:"name" validate:"omitempty,min=1,max=255"`
-	Description string `json:"description" validate:"max=1000"`
+	Name        *string `json:"name" validate:"omitempty,min=1,max=255"`
+	Description *string `json:"description" validate:"omitempty,max=1000"`
 }
 
 // ItemResponse represents the response payload for an item
@@ -70,30 +71,32 @@ func (s *Service) GetAll(limit, offset int) ([]ItemResponse, error) {
 }
 
 func (s *Service) Update(id uuid.UUID, req UpdateItemRequest) (*ItemResponse, error) {
-	item, err := s.repo.FindByID(id)
-	if err != nil {
+	// Build update map for atomic update (fixes race condition)
+	updates := make(map[string]interface{})
+	if req.Name != nil {
+		updates["name"] = *req.Name
+	}
+	if req.Description != nil {
+		updates["description"] = *req.Description
+	}
+
+	// Perform atomic update
+	if err := s.repo.UpdateFields(id, updates); err != nil {
 		return nil, err
 	}
 
-	if req.Name != "" {
-		item.Name = req.Name
-	}
-	if req.Description != "" {
-		item.Description = req.Description
-	}
-
-	if err := s.repo.Update(item); err != nil {
-		return nil, err
-	}
-
-	return toResponse(item), nil
+	// Fetch and return the updated item
+	return s.GetByID(id)
 }
 
-func (s *Service) Delete(id uuid.UUID) error {
+func (s *Service) Delete(id uuid.UUID) (int64, error) {
 	return s.repo.Delete(id)
 }
 
 func toResponse(item *Item) *ItemResponse {
+	if item == nil {
+		return nil
+	}
 	return &ItemResponse{
 		ID:          item.ID,
 		Name:        item.Name,

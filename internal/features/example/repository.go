@@ -36,6 +36,22 @@ func (r *Repository) Update(item *Item) error {
 	return r.db.Save(item).Error
 }
 
-func (r *Repository) Delete(id uuid.UUID) error {
-	return r.db.Delete(&Item{}, "id = ?", id).Error
+// UpdateFields performs an atomic update of specific fields
+func (r *Repository) UpdateFields(id uuid.UUID, fields map[string]interface{}) error {
+	if len(fields) == 0 {
+		return nil // No fields to update
+	}
+	result := r.db.Model(&Item{}).Where("id = ?", id).Updates(fields)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *Repository) Delete(id uuid.UUID) (int64, error) {
+	result := r.db.Delete(&Item{}, "id = ?", id)
+	return result.RowsAffected, result.Error
 }

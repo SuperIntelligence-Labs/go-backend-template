@@ -24,6 +24,14 @@ func main() {
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to connect to database")
 	}
+
+	// Ensure database connection is closed on shutdown
+	sqlDB, err := db.DB()
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to get sql.DB from GORM")
+	}
+	defer sqlDB.Close()
+
 	logger.Info().Msg("Connected to database")
 
 	// Auto migrate models

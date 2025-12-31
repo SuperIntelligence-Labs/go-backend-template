@@ -23,7 +23,7 @@ type JWTClaims struct {
 func JWTMiddleware(secretKey string) echo.MiddlewareFunc {
 	config := echojwt.Config{
 		SigningKey:  []byte(secretKey),
-		TokenLookup: "header:Authorization:Bearer ,query:token",
+		TokenLookup: "header:Authorization:Bearer ",
 
 		// Custom error handler that uses your AppError format
 		ErrorHandler: func(c echo.Context, err error) error {
@@ -56,6 +56,10 @@ func GetClaims(c echo.Context) (*JWTClaims, error) {
 // ValidateRefreshToken validates a refresh token and returns claims
 func ValidateRefreshToken(tokenString, secretKey string) (*JWTClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Validate signing algorithm to prevent algorithm confusion attacks
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return []byte(secretKey), nil
 	})
 

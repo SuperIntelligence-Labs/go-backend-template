@@ -39,7 +39,7 @@ func Zerolog() echo.MiddlewareFunc {
 			event.
 				Str("remote_ip", c.RealIP()).
 				Str("method", req.Method).
-				Str("uri", req.RequestURI).
+				Str("path", req.URL.Path).
 				Str("host", req.Host).
 				Int("status", status).
 				Int64("bytes_in", req.ContentLength).

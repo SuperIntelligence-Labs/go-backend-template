@@ -21,6 +21,11 @@ func respondSuccess[T any](c echo.Context, status int, message string, data T) e
 	}
 
 	if status == http.StatusNoContent {
+		// Ensure request ID header is set for tracing consistency
+		requestID := c.Response().Header().Get(echo.HeaderXRequestID)
+		if requestID != "" {
+			c.Response().Header().Set(echo.HeaderXRequestID, requestID)
+		}
 		return c.NoContent(http.StatusNoContent)
 	}
 
