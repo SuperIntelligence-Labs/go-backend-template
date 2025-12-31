@@ -1,25 +1,27 @@
 # Go Backend Template
 
-A production-ready Go backend template with clean architecture, built using the Gin web framework and following industry best practices.
+A production-ready Go backend template with clean architecture, built using the Echo web framework and following industry best practices.
 
 ## Features
 
-- **Layer-based Architecture** - Clean separation of concerns with handler, service, repository, and model layers
-- **Standardized API Responses** - Consistent success and error response formats with user-friendly messages
-- **Hot Reload** - Development with Air for automatic rebuilds on file changes
-- **Type-safe Validation** - Request validation using go-playground/validator with custom error messages
-- **High Performance** - Sonic JSON serialization for faster response times
-- **PostgreSQL Ready** - Structure prepared for database integration
-- **Production Ready** - Proper error handling, logging, and configuration management
+- **Feature-based Architecture** - Clean separation with handler, service, repository layers per feature
+- **Standardized API Responses** - Consistent success and error response formats
+- **Hot Reload** - Development with Air for automatic rebuilds
+- **JWT Authentication** - Ready-to-use JWT middleware
+- **PostgreSQL + GORM** - Database integration with migrations support
+- **Structured Logging** - Zerolog for production-ready logging
+- **Configuration Management** - Viper with environment variable support
+- **Request Validation** - go-playground/validator with custom error messages
 
 ## Tech Stack
 
 - **Go 1.25.4**
-- **Gin** - HTTP web framework
+- **Echo** - HTTP web framework
+- **GORM** - ORM for database operations
+- **Zerolog** - Structured logging
+- **Viper** - Configuration management
 - **Validator** - Request validation
-- **Sonic** - High-performance JSON serialization
 - **Air** - Hot reload for development
-- **Viper** - Configuration management (ready to integrate)
 
 ## Project Structure
 
@@ -27,408 +29,100 @@ A production-ready Go backend template with clean architecture, built using the 
 .
 ├── cmd/api/              # Application entry point
 ├── internal/
-│   ├── handler/          # HTTP request handlers
-│   ├── service/          # Business logic layer
-│   ├── repository/       # Data access layer
-│   ├── model/            # Domain models
-│   ├── dto/              # Data transfer objects
-│   │   ├── request/      # API request structures
-│   │   └── response/     # API response structures
-│   ├── middleware/       # Gin middleware
-│   ├── response/         # Standard response helpers
-│   ├── router/           # Route definitions
+│   ├── config/           # Configuration management
 │   ├── database/         # Database connection
-│   └── validator/        # Custom validators
-├── config/               # Configuration files
-├── migrations/           # Database migrations
-├── scripts/              # Build and deployment scripts
+│   ├── errors/           # Common error definitions
+│   ├── features/         # Feature modules
+│   │   └── example/      # Example CRUD feature
+│   │       ├── model.go
+│   │       ├── repository.go
+│   │       ├── service.go
+│   │       ├── handler.go
+│   │       └── routes.go
+│   ├── logger/           # Logging setup
+│   ├── middleware/       # JWT, logging middleware
+│   ├── response/         # Response helpers
+│   └── server/           # Server and router
+├── migrations/           # SQL migrations
+├── scripts/              # Build scripts
 └── pkg/                  # Reusable packages
 ```
-
-## Architecture Guide
-
-### Understanding the Layers
-
-This template follows a **layer-based architecture** where each layer has a specific responsibility:
-
-#### 1. `cmd/api/` - Application Entry Point
-**Purpose:** Contains the main.go file that bootstraps the application.
-
-**What goes here:**
-- Application initialization
-- Dependency injection setup
-- Server configuration and startup
-
-**Example:**
-```go
-package main
-
-func main() {
-    // Load config
-    // Initialize database
-    // Setup router
-    // Start server
-}
-```
-
-#### 2. `internal/handler/` - HTTP Handlers (Controllers)
-**Purpose:** Handles HTTP requests and responses. This is the entry point for all API endpoints.
-
-**Responsibilities:**
-- Receive HTTP requests
-- Validate request data using DTOs
-- Call service layer methods
-- Return standardized responses
-
-**What goes here:**
-- `user_handler.go` - User-related endpoints
-- `auth_handler.go` - Authentication endpoints
-- `product_handler.go` - Product endpoints
-
-**Example:**
-```go
-func (h *UserHandler) GetUser(c *gin.Context) {
-    id := c.Param("id")
-    user, err := h.userService.GetByID(id)
-    if err != nil {
-        response.NotFound(c, "User")
-        return
-    }
-    response.OK(c, user)
-}
-```
-
-#### 3. `internal/service/` - Business Logic Layer
-**Purpose:** Contains all business logic and rules. This is where your application's core functionality lives.
-
-**Responsibilities:**
-- Implement business rules
-- Coordinate between multiple repositories
-- Transform data between models and DTOs
-- Handle complex operations
-
-**What goes here:**
-- `user_service.go` - User business logic
-- `auth_service.go` - Authentication logic
-- `email_service.go` - Email sending logic
-
-**Example:**
-```go
-func (s *UserService) CreateUser(req *dto.CreateUserRequest) (*dto.UserResponse, error) {
-    // Business logic: hash password, validate uniqueness, etc.
-    hashedPassword := hashPassword(req.Password)
-
-    user := &model.User{
-        Email:    req.Email,
-        Password: hashedPassword,
-    }
-
-    if err := s.userRepo.Create(user); err != nil {
-        return nil, err
-    }
-
-    return toUserResponse(user), nil
-}
-```
-
-#### 4. `internal/repository/` - Data Access Layer
-**Purpose:** Handles all database operations. This is the only layer that talks to the database.
-
-**Responsibilities:**
-- CRUD operations
-- Database queries
-- Transaction management
-- Return domain models
-
-**What goes here:**
-- `user_repository.go` - User database operations
-- `product_repository.go` - Product database operations
-
-**Example:**
-```go
-func (r *UserRepository) Create(user *model.User) error {
-    return r.db.Create(user).Error
-}
-
-func (r *UserRepository) FindByEmail(email string) (*model.User, error) {
-    var user model.User
-    err := r.db.Where("email = ?", email).First(&user).Error
-    return &user, err
-}
-```
-
-#### 5. `internal/model/` - Domain Models
-**Purpose:** Defines your database entities and domain objects.
-
-**What goes here:**
-- Database table structures (with GORM tags)
-- Domain entities
-
-**Example:**
-```go
-type User struct {
-    ID        uuid.UUID  `gorm:"type:uuid;primary_key"`
-    Email     string     `gorm:"uniqueIndex;not null"`
-    Password  string     `gorm:"not null"`
-    Name      string     `gorm:"not null"`
-    CreatedAt time.Time  `gorm:"autoCreateTime"`
-    UpdatedAt time.Time  `gorm:"autoUpdateTime"`
-}
-```
-
-#### 6. `internal/dto/` - Data Transfer Objects
-**Purpose:** Defines the structure of data coming in (requests) and going out (responses) of your API.
-
-**Why separate from models?** DTOs decouple your API contract from your database schema. You can change your database without breaking your API.
-
-**What goes here:**
-
-`dto/request/` - API Request structures:
-```go
-type CreateUserRequest struct {
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=8"`
-    Name     string `json:"name" binding:"required"`
-}
-```
-
-`dto/response/` - API Response structures:
-```go
-type UserResponse struct {
-    ID        string `json:"id"`
-    Email     string `json:"email"`
-    Name      string `json:"name"`
-    CreatedAt int64  `json:"created_at"`
-}
-```
-
-#### 7. `internal/middleware/` - Gin Middleware
-**Purpose:** Contains middleware functions that run before/after request handlers.
-
-**What goes here:**
-- `auth.go` - JWT authentication middleware
-- `logger.go` - Request logging
-- `cors.go` - CORS configuration
-- `rate_limit.go` - Rate limiting
-
-**Example:**
-```go
-func AuthMiddleware() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        token := c.GetHeader("Authorization")
-        if !validateToken(token) {
-            response.Unauthorized(c, "")
-            return
-        }
-        c.Next()
-    }
-}
-```
-
-#### 8. `internal/response/` - Standard Response Helpers
-**Purpose:** Provides consistent response formats across all endpoints.
-
-**Already implemented:**
-- Success responses: `OK()`, `Created()`, `Updated()`, `Deleted()`
-- Error responses: `BadRequest()`, `NotFound()`, `Unauthorized()`, etc.
-
-**Usage:**
-```go
-response.OK(c, userData)
-response.Created(c, newUser)
-response.NotFound(c, "User")
-response.ValidationError(c, err)
-```
-
-#### 9. `internal/router/` - Route Definitions
-**Purpose:** Central place to define all your API routes.
-
-**What goes here:**
-- Route registration
-- Middleware application
-- Route grouping
-
-**Example:**
-```go
-func SetupRouter(userHandler *handler.UserHandler) *gin.Engine {
-    r := gin.Default()
-
-    api := r.Group("/api/v1")
-    {
-        users := api.Group("/users")
-        {
-            users.GET("/:id", userHandler.GetUser)
-            users.POST("", userHandler.CreateUser)
-            users.PUT("/:id", userHandler.UpdateUser)
-            users.DELETE("/:id", userHandler.DeleteUser)
-        }
-    }
-
-    return r
-}
-```
-
-#### 10. `internal/database/` - Database Connection
-**Purpose:** Database initialization and connection management.
-
-**What goes here:**
-- `postgres.go` - PostgreSQL connection setup
-- Connection pooling configuration
-- Database health checks
-
-**Example:**
-```go
-func NewPostgresDB(cfg *config.Config) (*gorm.DB, error) {
-    dsn := cfg.GetDatabaseDSN()
-    db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
-    if err != nil {
-        return nil, err
-    }
-    return db, nil
-}
-```
-
-#### 11. `internal/validator/` - Custom Validators
-**Purpose:** Custom validation rules beyond the standard validator tags.
-
-**What goes here:**
-- Custom validation functions
-- Business-specific validators
-
-**Example:**
-```go
-func ValidateIndianPhone(fl validator.FieldLevel) bool {
-    phone := fl.Field().String()
-    matched, _ := regexp.MatchString(`^[6-9]\d{9}$`, phone)
-    return matched
-}
-```
-
-#### 12. `config/` - Configuration Files
-**Purpose:** Application configuration files.
-
-**What goes here:**
-- `config.yaml` - Non-sensitive settings
-- `development.yaml`, `production.yaml` - Environment-specific configs
-- `.env.example` - Template for environment variables
-
-#### 13. `migrations/` - Database Migrations
-**Purpose:** Version-controlled database schema changes.
-
-**What goes here:**
-- SQL migration files
-- Naming: `000001_create_users_table.up.sql`, `000001_create_users_table.down.sql`
-
-**Example:**
-```sql
--- 000001_create_users_table.up.sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-#### 14. `scripts/` - Build and Deployment Scripts
-**Purpose:** Automation scripts for development and deployment.
-
-**What goes here:**
-- `migrate.sh` - Run database migrations
-- `seed.sh` - Seed database with test data
-- `deploy.sh` - Deployment scripts
-
-#### 15. `pkg/` - Reusable Packages
-**Purpose:** Code that could be extracted into a separate library.
-
-**What goes here:**
-- `httpclient/` - Reusable HTTP client
-- `utils/` - General utility functions
-- Only truly reusable, project-agnostic code
-
-**Note:** Most application-specific code should go in `internal/`, not `pkg/`.
-
-## Request Flow
-
-Here's how a typical request flows through the architecture:
-
-```
-1. HTTP Request
-   ↓
-2. Router (matches route)
-   ↓
-3. Middleware (auth, logging, etc.)
-   ↓
-4. Handler (validates request DTO)
-   ↓
-5. Service (business logic)
-   ↓
-6. Repository (database operation)
-   ↓
-7. Service (transforms model to response DTO)
-   ↓
-8. Handler (uses response helper to send JSON)
-   ↓
-9. HTTP Response
-```
-
-## Adding a New Feature
-
-**Example: Adding a "Post" feature**
-
-1. **Model** - Create `internal/model/post.go`:
-```go
-type Post struct {
-    ID        uuid.UUID `gorm:"type:uuid;primary_key"`
-    Title     string    `gorm:"not null"`
-    Content   string
-    AuthorID  uuid.UUID `gorm:"type:uuid;not null"`
-    CreatedAt time.Time
-}
-```
-
-2. **DTOs** - Create request/response structs:
-- `internal/dto/request/post_request.go`
-- `internal/dto/response/post_response.go`
-
-3. **Repository** - Create `internal/repository/post_repository.go`
-
-4. **Service** - Create `internal/service/post_service.go`
-
-5. **Handler** - Create `internal/handler/post_handler.go`
-
-6. **Routes** - Add routes in `internal/router/router.go`
-
-7. **Migration** - Create migration in `migrations/`
 
 ## Getting Started
 
 ### Prerequisites
 
 - Go 1.25.4 or higher
-- Air (for hot reload): `go install github.com/air-verse/air@latest`
+- PostgreSQL
+- Air (optional, for hot reload): `go install github.com/air-verse/air@latest`
 
 ### Installation
 
 1. Clone the repository:
 ```bash
 git clone <your-repo-url>
-cd go-template
+cd go-backend-template
 ```
 
-2. Install dependencies:
+2. Copy environment file:
+```bash
+cp .env.example .env
+```
+
+3. Configure `.env` with your settings
+
+4. Install dependencies:
 ```bash
 go mod download
 ```
 
-3. Run the application:
+5. Run the application:
 ```bash
 # Development (with hot reload)
 air
 
-# Production build
-go build -o bin/api ./cmd/api
-./bin/api
+# Or directly
+go run ./cmd/api
+```
+
+## Configuration
+
+Environment variables (`.env`):
+
+```env
+SERVER_HOST=localhost
+SERVER_PORT=8080
+SERVER_ENV=development
+
+LOG_LEVEL=debug
+
+JWT_AT_SECRET=your-access-token-secret
+JWT_AT_EXPIRES_IN=15
+JWT_RT_SECRET=your-refresh-token-secret
+JWT_RT_EXPIRES_IN=10080
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=password
+DB_NAME=myapp
+DB_SSL_MODE=disable
+```
+
+## API Endpoints
+
+### Health Check
+```
+GET /health
+```
+
+### Example Feature (Items)
+```
+GET    /api/v1/items      # List all items
+POST   /api/v1/items      # Create item
+GET    /api/v1/items/:id  # Get item by ID
+PUT    /api/v1/items/:id  # Update item
+DELETE /api/v1/items/:id  # Delete item
 ```
 
 ## API Response Format
@@ -438,8 +132,9 @@ go build -o bin/api ./cmd/api
 {
   "success": true,
   "message": "Request successful",
-  "response": { ... },
-  "timestamp": 1234567890
+  "data": { ... },
+  "request_id": "uuid",
+  "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
 
@@ -447,54 +142,424 @@ go build -o bin/api ./cmd/api
 ```json
 {
   "success": false,
-  "message": "Unable to process your request",
-  "error": {
-    "code": "BAD_REQUEST",
-    "message": "Detailed error message",
-    "details": { ... }
-  },
-  "timestamp": 1234567890
+  "message": "Error description",
+  "error_code": "ERR_BAD_REQUEST",
+  "request_id": "uuid",
+  "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
+
+---
+
+## Architecture Guide
+
+### Layer Flow
+
+```
+HTTP Request → Router → Middleware → Handler → Service → Repository → Database
+                                         ↓
+HTTP Response ← Response Helper ← Handler ← Service ← Repository
+```
+
+### Layer Responsibilities
+
+| Layer | Responsibility |
+|-------|----------------|
+| **Handler** | Parse requests, validate input, call service, return responses |
+| **Service** | Business logic, orchestrate repositories, transform data |
+| **Repository** | Database operations only (CRUD) |
+| **Model** | Database entity with GORM tags |
+
+---
+
+## Adding a New Feature
+
+Follow this step-by-step guide to add a new feature (e.g., "Users"):
+
+### Step 1: Create Feature Directory
+
+```bash
+mkdir internal/features/users
+```
+
+### Step 2: Create Model (`model.go`)
+
+```go
+package users
+
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
+type User struct {
+    ID        uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
+    Email     string    `gorm:"type:varchar(255);uniqueIndex;not null"`
+    Name      string    `gorm:"type:varchar(255);not null"`
+    Password  string    `gorm:"type:varchar(255);not null"`
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+    UpdatedAt time.Time `gorm:"autoUpdateTime"`
+}
+
+func (User) TableName() string {
+    return "users"
+}
+```
+
+### Step 3: Create Repository (`repository.go`)
+
+```go
+package users
+
+import (
+    "github.com/google/uuid"
+    "gorm.io/gorm"
+)
+
+type Repository struct {
+    db *gorm.DB
+}
+
+func NewRepository(db *gorm.DB) *Repository {
+    return &Repository{db: db}
+}
+
+func (r *Repository) Create(user *User) error {
+    return r.db.Create(user).Error
+}
+
+func (r *Repository) FindByID(id uuid.UUID) (*User, error) {
+    var user User
+    err := r.db.Where("id = ?", id).First(&user).Error
+    return &user, err
+}
+
+func (r *Repository) FindByEmail(email string) (*User, error) {
+    var user User
+    err := r.db.Where("email = ?", email).First(&user).Error
+    return &user, err
+}
+
+func (r *Repository) FindAll(limit, offset int) ([]User, error) {
+    var users []User
+    err := r.db.Limit(limit).Offset(offset).Find(&users).Error
+    return users, err
+}
+
+func (r *Repository) Update(user *User) error {
+    return r.db.Save(user).Error
+}
+
+func (r *Repository) Delete(id uuid.UUID) error {
+    return r.db.Delete(&User{}, "id = ?", id).Error
+}
+```
+
+### Step 4: Create Service (`service.go`)
+
+```go
+package users
+
+import (
+    "github.com/google/uuid"
+)
+
+type Service struct {
+    repo *Repository
+}
+
+func NewService(repo *Repository) *Service {
+    return &Service{repo: repo}
+}
+
+// Request DTOs
+type CreateUserRequest struct {
+    Email    string `json:"email" validate:"required,email"`
+    Name     string `json:"name" validate:"required,min=2,max=100"`
+    Password string `json:"password" validate:"required,min=8"`
+}
+
+type UpdateUserRequest struct {
+    Name string `json:"name" validate:"omitempty,min=2,max=100"`
+}
+
+// Response DTO
+type UserResponse struct {
+    ID        uuid.UUID `json:"id"`
+    Email     string    `json:"email"`
+    Name      string    `json:"name"`
+    CreatedAt string    `json:"created_at"`
+}
+
+func (s *Service) Create(req CreateUserRequest) (*UserResponse, error) {
+    user := &User{
+        Email:    req.Email,
+        Name:     req.Name,
+        Password: hashPassword(req.Password), // implement this
+    }
+
+    if err := s.repo.Create(user); err != nil {
+        return nil, err
+    }
+
+    return toResponse(user), nil
+}
+
+func (s *Service) GetByID(id uuid.UUID) (*UserResponse, error) {
+    user, err := s.repo.FindByID(id)
+    if err != nil {
+        return nil, err
+    }
+    return toResponse(user), nil
+}
+
+func (s *Service) GetAll(limit, offset int) ([]UserResponse, error) {
+    users, err := s.repo.FindAll(limit, offset)
+    if err != nil {
+        return nil, err
+    }
+
+    responses := make([]UserResponse, len(users))
+    for i, user := range users {
+        responses[i] = *toResponse(&user)
+    }
+    return responses, nil
+}
+
+func toResponse(user *User) *UserResponse {
+    return &UserResponse{
+        ID:        user.ID,
+        Email:     user.Email,
+        Name:      user.Name,
+        CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+    }
+}
+
+func hashPassword(password string) string {
+    // TODO: implement bcrypt hashing
+    return password
+}
+```
+
+### Step 5: Create Handler (`handler.go`)
+
+```go
+package users
+
+import (
+    "github.com/google/uuid"
+    "github.com/labstack/echo/v4"
+    "gorm.io/gorm"
+
+    "github.com/SuperIntelligence-Labs/go-backend-template/internal/response"
+)
+
+type Handler struct {
+    service *Service
+}
+
+func NewHandler(service *Service) *Handler {
+    return &Handler{service: service}
+}
+
+func (h *Handler) Create(c echo.Context) error {
+    var req CreateUserRequest
+    if err := c.Bind(&req); err != nil {
+        return response.ErrBadRequest("Invalid request body", nil)
+    }
+
+    if err := c.Validate(&req); err != nil {
+        return err
+    }
+
+    user, err := h.service.Create(req)
+    if err != nil {
+        return response.ErrInternalError(err)
+    }
+
+    return response.Created(c, "User created successfully", user)
+}
+
+func (h *Handler) GetByID(c echo.Context) error {
+    id, err := uuid.Parse(c.Param("id"))
+    if err != nil {
+        return response.ErrBadRequest("Invalid user ID", nil)
+    }
+
+    user, err := h.service.GetByID(id)
+    if err != nil {
+        if err == gorm.ErrRecordNotFound {
+            return response.ErrNotFound("User not found")
+        }
+        return response.ErrInternalError(err)
+    }
+
+    return response.OK(c, "User retrieved successfully", user)
+}
+
+func (h *Handler) GetAll(c echo.Context) error {
+    users, err := h.service.GetAll(20, 0)
+    if err != nil {
+        return response.ErrInternalError(err)
+    }
+
+    return response.OK(c, "Users retrieved successfully", users)
+}
+```
+
+### Step 6: Create Routes (`routes.go`)
+
+```go
+package users
+
+import "github.com/labstack/echo/v4"
+
+func RegisterRoutes(g *echo.Group, h *Handler) {
+    g.POST("", h.Create)
+    g.GET("", h.GetAll)
+    g.GET("/:id", h.GetByID)
+}
+```
+
+### Step 7: Wire Up in `cmd/api/main.go`
+
+Add to imports:
+```go
+"github.com/SuperIntelligence-Labs/go-backend-template/internal/features/users"
+```
+
+Add DI setup after database connection:
+```go
+// Users Feature
+userRepo := users.NewRepository(db)
+userService := users.NewService(userRepo)
+userHandler := users.NewHandler(userService)
+```
+
+Add to AutoMigrate:
+```go
+err = db.AutoMigrate(&example.Item{}, &users.User{})
+```
+
+Update RoutesConfig:
+```go
+srv.RegisterRoutes(server.RoutesConfig{
+    ExampleHandler: exampleHandler,
+    UserHandler:    userHandler,
+})
+```
+
+### Step 8: Update Router (`internal/server/router.go`)
+
+```go
+type RoutesConfig struct {
+    ExampleHandler *example.Handler
+    UserHandler    *users.Handler
+}
+
+func (s *Server) RegisterRoutes(cfg RoutesConfig) {
+    api := s.Echo.Group("/api/v1")
+
+    // Example feature
+    itemsGroup := api.Group("/items")
+    example.RegisterRoutes(itemsGroup, cfg.ExampleHandler)
+
+    // Users feature
+    usersGroup := api.Group("/users")
+    users.RegisterRoutes(usersGroup, cfg.UserHandler)
+}
+```
+
+---
+
+## Using JWT Middleware
+
+### Protect Routes
+
+```go
+import "github.com/SuperIntelligence-Labs/go-backend-template/internal/middleware"
+
+// In router.go
+usersGroup := api.Group("/users")
+usersGroup.Use(middleware.JWTMiddleware(cfg.JWTSecret))
+users.RegisterRoutes(usersGroup, cfg.UserHandler)
+```
+
+### Access Claims in Handler
+
+```go
+func (h *Handler) GetProfile(c echo.Context) error {
+    claims, err := middleware.GetClaims(c)
+    if err != nil {
+        return err
+    }
+
+    userID := claims.UserID
+    // ... use userID
+}
+```
+
+---
+
+## Response Helpers
+
+### Success Responses
+
+```go
+response.OK(c, "Message", data)           // 200
+response.Created(c, "Message", data)      // 201
+response.Accepted(c, "Message", data)     // 202
+response.NoContent(c)                     // 204
+```
+
+### Error Responses
+
+```go
+response.ErrBadRequest("Message", details)    // 400
+response.ErrUnauthorized("Message")           // 401
+response.ErrForbidden("Message")              // 403
+response.ErrNotFound("Message")               // 404
+response.ErrConflict("Message")               // 409
+response.ErrValidationFailed(validationErrs)  // 422
+response.ErrInternalError(err)                // 500
+```
+
+---
 
 ## Development
 
 ### Running Tests
 ```bash
-# Run all tests
 go test ./...
-
-# Run tests with coverage
 go test -cover ./...
-
-# Run specific package tests
-go test ./internal/handler
+go test -v ./internal/features/example
 ```
 
 ### Building
 ```bash
-# Build binary
 go build -o bin/api ./cmd/api
-
-# Build with optimizations
-go build -ldflags="-s -w" -o bin/api ./cmd/api
+go build -ldflags="-s -w" -o bin/api ./cmd/api  # optimized
 ```
 
-## Configuration
+### Database Migrations
 
-Configuration can be managed using environment variables or config files (Viper setup ready).
+Create migration files in `migrations/`:
+```sql
+-- migrations/000001_create_users_table.up.sql
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-### Environment Variables
-- `APP_ENV` - Application environment (development, staging, production)
-- `DATABASE_PASSWORD` - Database password
-- `JWT_SECRET` - JWT signing secret
+-- migrations/000001_create_users_table.down.sql
+DROP TABLE IF EXISTS users;
+```
 
-## Contributing
-
-1. Create a feature branch
-2. Make your changes
-3. Add tests
-4. Submit a pull request
+---
 
 ## License
 
