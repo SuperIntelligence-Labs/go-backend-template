@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -15,6 +16,7 @@ import (
 	"github.com/SuperIntelligence-Labs/go-backend-template/internal/response"
 )
 
+// Server wraps the Echo HTTP server.
 type Server struct {
 	Echo *echo.Echo
 }
@@ -30,6 +32,9 @@ func New() *Server {
 	e.Use(middleware.RequestID())
 	e.Use(appMiddleware.Zerolog())
 	e.Use(middleware.Recover())
+	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
+		Timeout: 30 * time.Second,
+	}))
 
 	// Health endpoint
 	e.GET("/health", func(c echo.Context) error {
@@ -46,6 +51,7 @@ func New() *Server {
 	return &Server{Echo: e}
 }
 
+// Start begins listening and handles graceful shutdown on SIGINT/SIGTERM.
 func (s *Server) Start(addr string) error {
 	go func() {
 		if err := s.Echo.Start(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -54,7 +60,7 @@ func (s *Server) Start(addr string) error {
 	}()
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

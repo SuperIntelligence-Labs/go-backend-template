@@ -9,19 +9,19 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	"github.com/SuperIntelligence-Labs/go-backend-template/internal/config"
+	"github.com/SuperIntelligence-Labs/go-backend-template/internal/logger"
 )
 
 type errorResponse struct {
-	Success    bool        `json:"success"`
-	Timestamp  string      `json:"timestamp"`
-	Message    string      `json:"message"`
-	RequestID  string      `json:"request_id"`
-	ErrorCode  string      `json:"error_code"`
-	Details    interface{} `json:"details,omitempty"`
-	DebugStack string      `json:"debug_stack,omitempty"`
+	Success   bool        `json:"success"`
+	Timestamp string      `json:"timestamp"`
+	Message   string      `json:"message"`
+	RequestID string      `json:"request_id"`
+	ErrorCode string      `json:"error_code"`
+	Details   interface{} `json:"details,omitempty"`
 }
 
+// AppError represents a structured API error with HTTP status code.
 type AppError struct {
 	StatusCode int
 	Message    string
@@ -37,6 +37,7 @@ func (e *AppError) Error() string {
 	return e.Message
 }
 
+// ErrorHandler is Echo's custom error handler for consistent error responses.
 func ErrorHandler(err error, c echo.Context) {
 	if err == nil || c.Response().Committed {
 		return
@@ -85,8 +86,13 @@ func ErrorHandler(err error, c echo.Context) {
 		Details:   appErr.Details,
 	}
 
-	if config.IsDev() && appErr.StatusCode >= 500 && appErr.Err != nil {
-		resp.DebugStack = string(debug.Stack())
+	// Log stack trace server-side for 5xx errors (don't expose in API response)
+	if appErr.StatusCode >= 500 && appErr.Err != nil {
+		logger.Error().
+			Err(appErr.Err).
+			Str("request_id", resp.RequestID).
+			Str("stack", string(debug.Stack())).
+			Msg("Internal server error")
 	}
 
 	_ = c.JSON(appErr.StatusCode, resp)
